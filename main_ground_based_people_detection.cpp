@@ -7,6 +7,11 @@
 #include <pcl/sample_consensus/sac_model_plane.h>
 #include <pcl/people/ground_based_people_detection_app.h>
 #include <pcl/common/time.h>
+#include <boost/filesystem.hpp>
+#include <algorithm>
+#include <iostream>
+
+using namespace boost::filesystem;
 
 typedef pcl::PointXYZRGBA PointT;
 typedef pcl::PointCloud<PointT> PointCloudT;
@@ -25,8 +30,8 @@ int print_help()
   cout << "Ground based people detection app options:" << std::endl;
   cout << "   --help    <show_this_help>" << std::endl;
   cout << "   --svm     <path_to_svm_file>" << std::endl;
-  cout << "   --conf    <minimum_HOG_confidence (default = -1.5)>" << std::endl;
-  cout << "   --min_h   <minimum_person_height (default = 1.3)>" << std::endl;
+  cout << "   --conf    <minimum_HOG_confidence (default = -100)>" << std::endl;
+  cout << "   --min_h   <minimum_person_height (default = 0.3)>" << std::endl;
   cout << "   --max_h   <maximum_person_height (default = 2.3)>" << std::endl;
   cout << "*******************************************************" << std::endl;
   return 0;
@@ -63,8 +68,8 @@ int main (int argc, char** argv)
 
   // Algorithm parameters:
   std::string svm_filename = "./trainedLinearSVMForPeopleDetectionWithHOG.yaml";
-  float min_confidence = -1.5;
-  float min_height = 1.3;
+  float min_confidence = -100;
+  float min_height = 0.3;
   float max_height = 2.3;
   float voxel_size = 0.06;
   Eigen::Matrix3f rgb_intrinsics_matrix;
@@ -129,13 +134,66 @@ int main (int argc, char** argv)
   people_detector.setVoxelSize(voxel_size);                        // set the voxel size
   people_detector.setIntrinsics(rgb_intrinsics_matrix);            // set RGB camera intrinsic parameters
   people_detector.setClassifier(person_classifier);                // set person classifier
-  people_detector.setPersonClusterLimits(min_height, max_height,0., 1.4);         // set person classifier
+  people_detector.setPersonClusterLimits(min_height, max_height,0., 2.4);         // set person classifier
 //  people_detector.setSensorPortraitOrientation(true);             // set sensor orientation to vertical
 
   // For timing:
   static unsigned count = 0;
   static double last = pcl::getTime ();
 
+  //std::copy(directory_iterator("./smart_playroom_kinect_data/exp_feb_7_14/top/"),
+    //directory_iterator(), std::ostream_iterator<directory_entry>(std::cout,"\n"));
+
+
+  for(directory_iterator di = directory_iterator("./smart_playroom_kinect_data/exp_feb_7_14/top/");
+    di != directory_iterator(); di++)
+  {
+    if (pcl::io::loadPCDFile<pcl::PointXYZRGBA> (di->path().string(), *cloud) == -1) //* load the file
+    {
+      PCL_ERROR ("Couldn't read file \n");
+      return (-1);
+    }
+    // Perform people detection on the new cloud:
+      std::vector<pcl::people::PersonCluster<PointT> > clusters;   // vector containing persons clusters
+      people_detector.setInputCloud(cloud);
+      people_detector.setGround(ground_coeffs);                    // set floor coefficients
+      people_detector.compute(clusters);                           // perform people detection
+
+      ground_coeffs = people_detector.getGround();                 // get updated floor coefficients
+
+      // Draw cloud and people bounding boxes in the viewer:
+      viewer.removeAllPointClouds();
+      viewer.removeAllShapes();
+      pcl::visualization::PointCloudColorHandlerRGBField<PointT> rgb(cloud);
+      viewer.addPointCloud<PointT> (cloud, rgb, "input_cloud");
+      unsigned int k = 0;
+      for(std::vector<pcl::people::PersonCluster<PointT> >::iterator it = clusters.begin(); it != clusters.end(); ++it)
+      {
+        if(it->getPersonConfidence() > min_confidence)             // draw only people with confidence above a threshold
+        {
+          // draw theoretical person bounding box in the PCL viewer:
+          it->drawTBoundingBox(viewer, k);
+          k++;
+        }
+      }
+      std::cout << k << " people found" << std::endl;
+      viewer.spinOnce();
+
+      // Display average framerate:
+      if (++count == 30)
+      {
+        double now = pcl::getTime ();
+        std::cout << "Average framerate: " << double(count)/double(now - last) << " Hz" <<  std::endl;
+        count = 0;
+        last = now;
+      }
+      if(viewer.wasStopped())
+        break;
+
+    //std::cout << di->path() << std::endl;
+  }
+
+/*
   // Main loop:
   while (!viewer.wasStopped())
   {
@@ -179,6 +237,7 @@ int main (int argc, char** argv)
       cloud_mutex.unlock ();
     }
   }
+  */
 
   return 0;
 }
