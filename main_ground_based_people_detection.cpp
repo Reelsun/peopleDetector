@@ -1,3 +1,5 @@
+#include <pcl/io/pcd_io.h>
+#include <pcl/visualization/cloud_viewer.h>
 #include <pcl/console/parse.h>
 #include <pcl/point_types.h>
 #include <pcl/visualization/pcl_visualizer.h>    
@@ -30,21 +32,13 @@ int print_help()
   return 0;
 }
 
-void cloud_cb_ (const PointCloudT::ConstPtr &callback_cloud, PointCloudT::Ptr& cloud,
-    bool* new_cloud_available_flag)
-{
-  cloud_mutex.lock ();    // for not overwriting the point cloud from another thread
-  *cloud = *callback_cloud;
-  *new_cloud_available_flag = true;
-  cloud_mutex.unlock ();
-}
-
+  
 struct callback_args{
   // structure used to pass arguments to the callback function
   PointCloudT::Ptr clicked_points_3d;
   pcl::visualization::PCLVisualizer::Ptr viewerPtr;
 };
-  
+
 void
 pp_callback (const pcl::visualization::PointPickingEvent& event, void* args)
 {
@@ -84,17 +78,12 @@ int main (int argc, char** argv)
 
   // Read Kinect live stream:
   PointCloudT::Ptr cloud (new PointCloudT);
-  bool new_cloud_available_flag = false;
-  pcl::Grabber* interface = new pcl::OpenNIGrabber();
-  boost::function<void (const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr&)> f =
-      boost::bind (&cloud_cb_, _1, cloud, &new_cloud_available_flag);
-  interface->registerCallback (f);
-  interface->start ();
 
-  // Wait for the first frame:
-  while(!new_cloud_available_flag) 
-    boost::this_thread::sleep(boost::posix_time::milliseconds(1));
-  new_cloud_available_flag = false;
+  if (pcl::io::loadPCDFile<pcl::PointXYZRGBA> ("test_pcd.pcd", *cloud) == -1) //* load the file
+  {
+    PCL_ERROR ("Couldn't read file test_pcd.pcd \n");
+    return (-1);
+  }
 
   cloud_mutex.lock ();    // for not overwriting the point cloud
 
@@ -150,9 +139,8 @@ int main (int argc, char** argv)
   // Main loop:
   while (!viewer.wasStopped())
   {
-    if (new_cloud_available_flag && cloud_mutex.try_lock ())    // if a new cloud is available
+    if (cloud_mutex.try_lock ())    // if a new cloud is available
     {
-      new_cloud_available_flag = false;
 
       // Perform people detection on the new cloud:
       std::vector<pcl::people::PersonCluster<PointT> > clusters;   // vector containing persons clusters
