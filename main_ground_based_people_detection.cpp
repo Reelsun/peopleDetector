@@ -8,10 +8,15 @@
 #include <pcl/people/ground_based_people_detection_app.h>
 #include <pcl/common/time.h>
 #include <boost/filesystem.hpp>
+#include <boost/range/iterator_range_core.hpp>
+#include <boost/range/algorithm_ext/push_back.hpp>
+#include <boost/range/algorithm/sort.hpp>
+#include <boost/range/algorithm/copy.hpp>
 #include <algorithm>
 #include <iostream>
 
 using namespace boost::filesystem;
+using namespace boost;
 
 typedef pcl::PointXYZRGBA PointT;
 typedef pcl::PointCloud<PointT> PointCloudT;
@@ -69,8 +74,8 @@ int main (int argc, char** argv)
   // Algorithm parameters:
   std::string svm_filename = "./trainedLinearSVMForPeopleDetectionWithHOG.yaml";
   float min_confidence = -100;
-  float min_height = 0.3;
-  float max_height = 2.3;
+  float min_height = 0.1;
+  float max_height = 1.5;
   float voxel_size = 0.06;
   Eigen::Matrix3f rgb_intrinsics_matrix;
   rgb_intrinsics_matrix << 525, 0.0, 319.5, 0.0, 525, 239.5, 0.0, 0.0, 1.0; // Kinect RGB camera intrinsics
@@ -143,12 +148,17 @@ int main (int argc, char** argv)
 
   //std::copy(directory_iterator("./smart_playroom_kinect_data/exp_feb_7_14/top/"),
     //directory_iterator(), std::ostream_iterator<directory_entry>(std::cout,"\n"));
+  //auto dir = make_iterator_range(directory_iterator("./smart_playroom_kinect_data/exp_feb_7_14/top/"), directory_iterator());
+  std::vector<directory_entry> sdir;
+  push_back(sdir, make_iterator_range(directory_iterator("./smart_playroom_kinect_data/exp_feb_7_14/top/"), directory_iterator()));
+  sdir = sort(sdir);
+  copy(sdir, std::ostream_iterator<directory_entry>(std::cout, "\n"));
 
 
-  for(directory_iterator di = directory_iterator("./smart_playroom_kinect_data/exp_feb_7_14/top/");
-    di != directory_iterator(); di++)
+  for(int i = 0; i <= sdir.size(); i++)
+  //for(auto di:dir)
   {
-    if (pcl::io::loadPCDFile<pcl::PointXYZRGBA> (di->path().string(), *cloud) == -1) //* load the file
+    if (pcl::io::loadPCDFile<pcl::PointXYZRGBA> (sdir[i].path().string(), *cloud) == -1) //* load the file
     {
       PCL_ERROR ("Couldn't read file \n");
       return (-1);
