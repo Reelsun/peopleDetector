@@ -74,8 +74,8 @@ int main (int argc, char** argv)
   // Algorithm parameters:
   std::string svm_filename = "./trainedLinearSVMForPeopleDetectionWithHOG.yaml";
   float min_confidence = -100;
-  float min_height = 0.1;
-  float max_height = 1.5;
+  float min_height = 0.4;
+  float max_height = 1.3;
   float voxel_size = 0.06;
   Eigen::Matrix3f rgb_intrinsics_matrix;
   rgb_intrinsics_matrix << 525, 0.0, 319.5, 0.0, 525, 239.5, 0.0, 0.0, 1.0; // Kinect RGB camera intrinsics
@@ -89,7 +89,11 @@ int main (int argc, char** argv)
   // Read Kinect live stream:
   PointCloudT::Ptr cloud (new PointCloudT);
 
-  if (pcl::io::loadPCDFile<pcl::PointXYZRGBA> ("test_pcd.pcd", *cloud) == -1) //* load the file
+  std::vector<directory_entry> sdir;
+  push_back(sdir, make_iterator_range(directory_iterator("/home/li/pcd/video"), directory_iterator()));
+  sdir = sort(sdir);
+
+  if (pcl::io::loadPCDFile<pcl::PointXYZRGBA> (sdir[0].path().string(), *cloud) == -1) //* load the file
   {
     PCL_ERROR ("Couldn't read file test_pcd.pcd \n");
     return (-1);
@@ -139,7 +143,7 @@ int main (int argc, char** argv)
   people_detector.setVoxelSize(voxel_size);                        // set the voxel size
   people_detector.setIntrinsics(rgb_intrinsics_matrix);            // set RGB camera intrinsic parameters
   people_detector.setClassifier(person_classifier);                // set person classifier
-  people_detector.setPersonClusterLimits(min_height, max_height,0., 2.4);         // set person classifier
+  people_detector.setPersonClusterLimits(min_height, max_height,0.2, 1.1);         // set person classifier
 //  people_detector.setSensorPortraitOrientation(true);             // set sensor orientation to vertical
 
   // For timing:
@@ -149,10 +153,7 @@ int main (int argc, char** argv)
   //std::copy(directory_iterator("./smart_playroom_kinect_data/exp_feb_7_14/top/"),
     //directory_iterator(), std::ostream_iterator<directory_entry>(std::cout,"\n"));
   //auto dir = make_iterator_range(directory_iterator("./smart_playroom_kinect_data/exp_feb_7_14/top/"), directory_iterator());
-  std::vector<directory_entry> sdir;
-  push_back(sdir, make_iterator_range(directory_iterator("./smart_playroom_kinect_data/exp_feb_7_14/top/"), directory_iterator()));
-  sdir = sort(sdir);
-  copy(sdir, std::ostream_iterator<directory_entry>(std::cout, "\n"));
+  //copy(sdir, std::ostream_iterator<directory_entry>(std::cout, "\n"));
 
 
   for(int i = 0; i <= sdir.size(); i++)
@@ -175,7 +176,10 @@ int main (int argc, char** argv)
       viewer.removeAllPointClouds();
       viewer.removeAllShapes();
       pcl::visualization::PointCloudColorHandlerRGBField<PointT> rgb(cloud);
-      viewer.addPointCloud<PointT> (cloud, rgb, "input_cloud");
+      
+      PointCloudT::Ptr ngCloud = people_detector.getNoGroundCloud();
+
+      viewer.addPointCloud<PointT> (cloud, rgb, "no_ground_cloud");
       unsigned int k = 0;
       for(std::vector<pcl::people::PersonCluster<PointT> >::iterator it = clusters.begin(); it != clusters.end(); ++it)
       {
